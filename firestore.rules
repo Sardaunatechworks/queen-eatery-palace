@@ -1,0 +1,85 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data : {};
+    }
+    
+    function isAdmin() {
+      let data = getUserData();
+      return isAuthenticated() && (data.role == 'admin' || data.role == 'Admin');
+    }
+    
+    function isCashier() {
+      let data = getUserData();
+      return isAuthenticated() && (data.role == 'cashier' || data.role == 'Cashier');
+    }
+    
+    function isKitchen() {
+      let data = getUserData();
+      return isAuthenticated() && (data.role == 'kitchen' || data.role == 'Kitchen');
+    }
+    
+    function isCustomer() {
+      let data = getUserData();
+      return isAuthenticated() && (data.role == 'customer' || data.role == 'Customer');
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      // Customers can read their own profile. Admins can read all.
+      allow read: if isOwner(userId) || isAdmin() || isCashier() || !isAuthenticated();
+      
+      // Customers can create their own profile during signup.
+      allow create: if isOwner(userId);
+      
+      // Admins can create/update any user profile.
+      allow create, update, delete: if isAdmin();
+      
+      // Users can update their own profile (except role).
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
+    }
+
+
+    // Menu Collection
+    match /menu/{itemId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Inventory Collection
+    match /inventory/{itemId} {
+      allow read, write: if isAdmin();
+      allow read, update: if isCashier() || isKitchen();
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow read: if (isCustomer() && resource.data.userId == request.auth.uid) || isAdmin() || isCashier() || isKitchen();
+      allow create: if isCustomer() || isCashier() || isAdmin();
+      allow update: if isKitchen() || isAdmin() || isCashier();
+      allow delete: if isAdmin();
+    }
+
+    // Metadata Collection (for counters, etc)
+    match /metadata/{any=**} {
+      allow read, write: if isAuthenticated();
+    }
+
+
+
+  }
+}
+
