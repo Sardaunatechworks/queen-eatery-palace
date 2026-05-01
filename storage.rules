@@ -1,0 +1,31 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Function to check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Function to check if the user is an admin
+    // Note: In storage rules, we don't have direct access to Firestore documents easily without Custom Claims.
+    // If you are using Custom Claims for roles, you can check `request.auth.token.role == 'admin'`.
+    // Since we check roles in Firestore, we'll allow authenticated users to upload, 
+    // but the actual document write to Firestore will be protected by Firestore rules.
+    // Alternatively, if you set Custom Claims, uncomment the check.
+    function isAdmin() {
+      return isAuthenticated(); 
+      // Replace with this if using custom claims: return isAuthenticated() && request.auth.token.role == 'admin';
+    }
+
+    match /cms/{allPaths=**} {
+      // Anyone can read public CMS images
+      allow read: if true;
+      
+      // Only Admins (or authenticated users, see note above) can write CMS images
+      allow write: if isAdmin()
+                   && request.resource.size < 5 * 1024 * 1024 // Max 5MB
+                   && request.resource.contentType.matches('image/.*'); // Only images
+    }
+  }
+}

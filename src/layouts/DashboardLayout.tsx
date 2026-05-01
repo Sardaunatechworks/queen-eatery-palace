@@ -45,8 +45,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({ navigation, ti
         <div className="flex flex-col h-full">
           <div className="px-6 py-8 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Utensils className="text-primary" size={20} />
-              <span className="text-sm font-bold tracking-tight text-dark uppercase">Queen's Eatery</span>
+              <span className="text-sm font-bold tracking-tight text-dark uppercase leading-tight">Queen Eatery Palace <br className="hidden sm:block" /> and Event Hall</span>
             </div>
             <button className="md:hidden text-gray-400 hover:text-dark" onClick={() => setIsMobileMenuOpen(false)}>
               <X size={20} />

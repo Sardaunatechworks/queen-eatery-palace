@@ -2,10 +2,11 @@ import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, query, where, doc, updateDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../../services/firebase";
 import { Order } from "../admin/OrdersView";
-import { format } from "date-fns";
-import { Search, Filter, Receipt, Clock, CheckCircle, XCircle, Timer, AlertCircle } from "lucide-react";
+import { format, isToday } from "date-fns";
+import { Search, Filter, Receipt, Clock, CheckCircle, XCircle, Timer, AlertCircle, TrendingUp, ShoppingBag, CreditCard, Box } from "lucide-react";
 import { formatNaira } from "../../utils/format";
 import { useUI } from "../../context/UIContext";
+import { cn } from "../../utils/cn";
 
 export const CashierTransactions: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -32,6 +33,17 @@ export const CashierTransactions: React.FC = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  const eodReport = useMemo(() => {
+    const todayOrders = orders.filter(o => o.createdAt?.toDate && isToday(o.createdAt.toDate()));
+    
+    return {
+      totalSales: todayOrders.reduce((sum, o) => o.paymentStatus === 'paid' ? sum + o.total : sum, 0),
+      orderCount: todayOrders.length,
+      completedCount: todayOrders.filter(o => o.status === 'completed').length,
+      pendingPayments: todayOrders.reduce((sum, o) => o.paymentStatus !== 'paid' ? sum + o.total : sum, 0),
+    };
+  }, [orders]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => {
@@ -64,7 +76,58 @@ export const CashierTransactions: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 pb-10">
+    <div className="space-y-8 pb-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-green-50 text-green-600 rounded-xl">
+              <TrendingUp size={20} />
+            </div>
+            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full uppercase tracking-tight">Today</span>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Today's Sales</p>
+            <h3 className="text-xl font-bold text-dark">{formatNaira(eodReport.totalSales)}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+              <ShoppingBag size={20} />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total Orders</p>
+            <h3 className="text-xl font-bold text-dark">{eodReport.orderCount} Orders</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-purple-50 text-purple-600 rounded-xl">
+              <Box size={20} />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Completed Today</p>
+            <h3 className="text-xl font-bold text-dark">{eodReport.completedCount} Served</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+              <CreditCard size={20} />
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Pending Payment</p>
+            <h3 className="text-xl font-bold text-dark">{formatNaira(eodReport.pendingPayments)}</h3>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
            <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary/5 text-primary rounded-full text-[11px] font-bold uppercase tracking-tight mb-2">
@@ -122,7 +185,7 @@ export const CashierTransactions: React.FC = () => {
                 <tr key={order.id} className="group hover:bg-gray-50/50 transition-colors text-sm">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                       <Receipt size={14} className="text-primary" />
+                       <Receipt size={14} className="text-accent" />
                        <span className="font-bold text-dark">{order.orderId || order.id.slice(0, 8)}</span>
                     </div>
                   </td>

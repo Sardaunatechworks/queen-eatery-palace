@@ -133,8 +133,66 @@ export const OrdersView: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Mobile Card Layout */}
+        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+          {filteredOrders.length === 0 ? (
+            <div className="p-12 text-center opacity-50">
+              <Receipt className="mx-auto mb-2 text-gray-300" size={32} />
+              <p className="text-sm font-bold text-gray-400">No orders found</p>
+            </div>
+          ) : (
+            filteredOrders.map(order => (
+              <div key={order.id} className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100 space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Order ID</p>
+                    <p className="font-mono font-bold text-dark text-sm">{order.orderId || order.id.slice(0, 8)}</p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-tight border ${getStatusStyle(order.status)}`}>
+                    {order.status}
+                  </span>
+                </div>
+                
+                <div className="flex justify-between items-center text-xs">
+                  <div>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Items</p>
+                    <p className="font-semibold text-dark">{order.items.length} items</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Total</p>
+                    <p className="font-bold text-primary text-sm">{formatNaira(order.total)}</p>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+                  <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase ${order.paymentStatus === 'paid' ? 'text-green-600' : 'text-amber-600'}`}>
+                    <CheckCircle2 size={12} /> {order.paymentStatus}
+                  </span>
+                  <div className="relative group">
+                    <button className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-[10px] font-bold uppercase text-gray-600 hover:text-primary transition-all">
+                       Status <MoreVertical size={12} />
+                    </button>
+                    <div className="absolute right-0 bottom-full mb-2 w-36 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 opacity-0 group-focus-within:opacity-100 transition-opacity z-10">
+                      {["preparing", "ready", "completed", "cancelled"].map((s) => (
+                        <button 
+                          key={s}
+                          onClick={() => updateStatus(order.id, s as Order["status"])}
+                          className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-primary capitalize transition-colors"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          ))}
+        </div>
+
+        {/* Desktop Table Layout */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">

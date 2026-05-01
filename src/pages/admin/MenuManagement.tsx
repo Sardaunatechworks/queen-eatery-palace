@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, doc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc, addDoc, updateDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../../services/firebase";
 import { formatNaira } from "../../utils/format";
 import { useUI } from "../../context/UIContext";
-import { Plus, Trash2, Search, Filter, UtensilsCrossed, X } from "lucide-react";
+import { Plus, Trash2, Search, Filter, UtensilsCrossed, X, Edit } from "lucide-react";
+import { cn } from "../../utils/cn";
+import { ImageUpload } from "../../components/ImageUpload";
+
+const CATEGORIES = ["Meals", "Rice Dishes", "Soups", "Drinks", "Snacks", "Desserts"];
 
 export interface MenuItem {
   id: string;
@@ -11,15 +15,18 @@ export interface MenuItem {
   price: number;
   image: string;
   category: string;
+  isAvailable?: boolean;
+  stockQuantity: number;
 }
 
 export const MenuManagement: React.FC = () => {
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
-  const [formData, setFormData] = useState({ name: "", price: "", image: "", category: "Main" });
+  const [formData, setFormData] = useState({ name: "", price: "", image: "", category: CATEGORIES[0], stockQuantity: "0" });
   
   const { setLoading: setGlobalLoading, showToast } = useUI();
 
@@ -42,22 +49,50 @@ export const MenuManagement: React.FC = () => {
     });
   }, [menu, searchTerm, categoryFilter]);
 
-  const handleAddItem = async (e: React.FormEvent) => {
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setFormData({ name: "", price: "", image: "", category: CATEGORIES[0], stockQuantity: "0" });
+  };
+
+  const handleEditClick = (item: MenuItem) => {
+    setEditingId(item.id);
+    setFormData({
+      name: item.name,
+      price: item.price.toString(),
+      image: item.image,
+      category: item.category,
+      stockQuantity: item.stockQuantity.toString()
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setGlobalLoading(true);
     try {
-      await addDoc(collection(db, "menu"), {
+      const dataToSave = {
         name: formData.name,
         price: Number(formData.price),
         image: formData.image || "https://picsum.photos/seed/food/400/300",
-        category: formData.category
-      });
-      setShowModal(false);
-      setFormData({ name: "", price: "", image: "", category: "Main" });
-      showToast("Menu item added successfully", "success");
+        category: formData.category,
+        stockQuantity: Number(formData.stockQuantity) || 0
+      };
+
+      if (editingId) {
+        await updateDoc(doc(db, "menu", editingId), dataToSave);
+        showToast("Menu item updated successfully", "success");
+      } else {
+        await addDoc(collection(db, "menu"), {
+          ...dataToSave,
+          isAvailable: true
+        });
+        showToast("Menu item added successfully", "success");
+      }
+      closeModal();
     } catch (error: any) {
-      showToast("Failed to add menu item", "error");
-      handleFirestoreError(error, OperationType.CREATE, "menu");
+      showToast(editingId ? "Failed to update item" : "Failed to add menu item", "error");
+      handleFirestoreError(error, editingId ? OperationType.UPDATE : OperationType.CREATE, "menu");
     } finally {
       setGlobalLoading(false);
     }
@@ -118,10 +153,9 @@ export const MenuManagement: React.FC = () => {
             onChange={(e) => setCategoryFilter(e.target.value)}
           >
             <option value="All">All Categories</option>
-            <option value="Main">Main Course</option>
-            <option value="Appetizer">Appetizer</option>
-            <option value="Dessert">Dessert</option>
-            <option value="Drink">Drink</option>
+            {CATEGORIES.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
         </div>
       </div>
@@ -132,7 +166,7 @@ export const MenuManagement: React.FC = () => {
           <p className="font-semibold text-gray-400">No items found</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {filteredMenu.map(item => (
             <div 
               key={item.id} 
@@ -149,13 +183,50 @@ export const MenuManagement: React.FC = () => {
                   <h3 className="font-bold text-dark text-base leading-tight">{item.name}</h3>
                   <span className="text-primary font-bold text-base">{formatNaira(item.price)}</span>
                 </div>
-                <div className="flex justify-end pt-3 border-t border-gray-50">
+                <div className="flex justify-between items-center pt-3 border-t border-gray-50">
                   <button 
-                    onClick={() => handleDelete(item.id, item.name)} 
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                    onClick={async () => {
+                      try {
+                        const newStatus = item.isAvailable === false;
+                        await updateDoc(doc(db, "menu", item.id), { isAvailable: newStatus });
+                        showToast(`"${item.name}" is now ${newStatus ? 'available' : 'unavailable'}`, "success");
+                      } catch (e) {
+                        showToast("Failed to update status", "error");
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-black uppercase tracking-tighter rounded-lg transition-all border",
+                      item.isAvailable !== false 
+                        ? "bg-green-50 text-green-600 border-green-100 hover:bg-green-100" 
+                        : "bg-red-50 text-red-600 border-red-100 hover:bg-red-100"
+                    )}
                   >
-                    <Trash2 size={14} /> Delete
+                    {item.isAvailable !== false ? "Available" : "Unavailable"}
                   </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                      <button 
+                        onClick={() => handleEditClick(item)} 
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                        title="Edit Item"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(item.id, item.name)} 
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                        title="Delete Item"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                    <div className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                      item.stockQuantity > 0 ? "bg-gray-100 text-gray-500" : "bg-red-100 text-red-600"
+                    )}>
+                      Stock: {item.stockQuantity}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -167,37 +238,45 @@ export const MenuManagement: React.FC = () => {
         <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
           <div className="bg-white p-8 rounded-2xl w-full max-w-md shadow-2xl relative">
             <button 
-              onClick={() => setShowModal(false)}
+              onClick={closeModal}
               className="absolute top-6 right-6 p-2 text-gray-400 hover:text-dark hover:bg-gray-100 rounded-full transition-all"
             >
               <X size={20} />
             </button>
-            <h3 className="text-lg font-bold mb-6 text-dark tracking-tight">Add Menu Item</h3>
-            <form onSubmit={handleAddItem} className="space-y-4">
+            <h3 className="text-lg font-bold mb-6 text-dark tracking-tight">{editingId ? "Update Menu Item" : "Add Menu Item"}</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Item Name</label>
                 <input type="text" placeholder="Jollof Rice" required className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Price (₦)</label>
-                <input type="number" step="0.01" placeholder="0.00" required className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Price (₦)</label>
+                  <input type="number" step="0.01" placeholder="0.00" required className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Initial Stock</label>
+                  <input type="number" placeholder="0" required className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm" value={formData.stockQuantity} onChange={e => setFormData({...formData, stockQuantity: e.target.value})} />
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Image URL</label>
-                <input type="text" placeholder="https://..." className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Item Photo</label>
+                <ImageUpload 
+                  onUploadComplete={(url) => setFormData({...formData, image: url})} 
+                  folder="menu"
+                />
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-tight mb-1.5 ml-1">Category</label>
                 <select className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all text-sm appearance-none" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                  <option value="Main">Main Course</option>
-                  <option value="Appetizer">Appetizer</option>
-                  <option value="Dessert">Dessert</option>
-                  <option value="Drink">Drink</option>
+                  {CATEGORIES.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-lg transition-all">Cancel</button>
-                <button type="submit" className="flex-1 bg-primary text-white py-3 rounded-lg font-bold text-sm hover:bg-primary-dark transition-all shadow-sm">Add Item</button>
+                <button type="button" onClick={closeModal} className="flex-1 py-3 text-sm font-bold text-gray-500 hover:bg-gray-50 rounded-lg transition-all">Cancel</button>
+                <button type="submit" className="flex-1 bg-primary text-white py-3 rounded-lg font-bold text-sm hover:bg-primary-dark transition-all shadow-sm">{editingId ? "Update Item" : "Add Item"}</button>
               </div>
             </form>
           </div>

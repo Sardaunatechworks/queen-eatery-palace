@@ -1,10 +1,11 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #4f46e5;
-  --color-primary-dark: #3730a3;
+  --color-primary: #c81e1e; /* Royal Red */
+  --color-primary-dark: #9b1c1c;
+  --color-accent: #d4af37; /* Elegant Gold */
   --color-dark: #111827;
-  --color-light: #f3f4f6;
+  --color-light: #f8fafc;
   --color-surface: #ffffff;
 }
 
@@ -40,9 +41,28 @@
     @apply bg-white rounded-xl border border-gray-100 shadow-sm transition-shadow hover:shadow-md;
   }
 
-  /* Standard Button */
+  /* Mobile touch optimizations */
+  @media (max-width: 640px) {
+    input, select, textarea, button {
+      font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+    
+    .btn-primary {
+      @apply py-3 w-full; /* Full width buttons on mobile */
+    }
+  }
+
+  /* No scrollbar utility */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
   .btn-primary {
-    @apply bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors;
+    @apply bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors active:scale-95 duration-200;
   }
 }
 

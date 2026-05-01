@@ -124,8 +124,55 @@ export const InventoryManagement: React.FC = () => {
           <p className="font-semibold text-gray-400">No items found</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Mobile Inventory Cards */}
+          <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+            {filteredInventory.map(item => {
+              const isLow = item.quantity <= item.threshold;
+              return (
+                <div key={item.id} className={`p-4 rounded-2xl border ${isLow ? 'bg-red-50/50 border-red-100' : 'bg-gray-50/50 border-gray-100'} space-y-4`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Item Name</p>
+                      <p className="font-bold text-dark text-sm">{item.name}</p>
+                    </div>
+                    {isLow ? (
+                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[9px] font-black uppercase rounded-full">Low Stock</span>
+                    ) : (
+                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[9px] font-black uppercase rounded-full">In Stock</span>
+                    )}
+                  </div>
+
+                  <div className="flex justify-between items-end">
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Quantity</p>
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => updateInventoryQuantity(item.id, item.name, item.quantity - 1)} 
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-sm"
+                        >
+                          <Minus size={14} />
+                        </button>
+                        <span className="w-6 text-center font-bold text-sm">{item.quantity}</span>
+                        <button 
+                          onClick={() => updateInventoryQuantity(item.id, item.name, item.quantity + 1)} 
+                          className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-gray-200 shadow-sm"
+                        >
+                          <PlusIcon size={14} />
+                        </button>
+                      </div>
+                    </div>
+                    <button onClick={() => handleDelete(item.id, item.name)} className="p-2 text-gray-300 hover:text-red-500">
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop Inventory Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">

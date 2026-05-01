@@ -3,10 +3,11 @@ import { collection, getDocs, doc, setDoc } from "firebase/firestore";
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, signOut } from "firebase/auth";
 import { db, handleFirestoreError, OperationType } from "../../services/firebase";
-import { UserProfile } from "../../context/AuthContext";
+import { UserProfile, UserRole } from "../../context/AuthContext";
 import { useUI } from "../../context/UIContext";
 import { Plus, Trash2, Search, Filter, Users, X, Mail, Phone, ShieldCheck, Shield, User as UserIcon } from "lucide-react";
 import firebaseConfig from "../../../firebase-applet-config.json";
+import { cn } from "../../utils/cn";
 
 // Safe initialization for the secondary app to prevent "duplicate-app" errors in HMR
 const secondaryApp = getApps().find(a => a.name === "SecondaryApp") 
@@ -41,7 +42,8 @@ export const UsersManagement: React.FC = () => {
 
   const filteredUsers = useMemo(() => {
     return users.filter(user => {
-      // Add null-safety to avoid crash on missing name/email
+      if (user.isDeleted) return false;
+      
       const userName = user.name?.toLowerCase() || "";
       const userEmail = user.email?.toLowerCase() || "";
       const searchLower = searchTerm.toLowerCase();
@@ -77,6 +79,61 @@ export const UsersManagement: React.FC = () => {
     }
   };
 
+
+  const toggleUserStatus = async (user: UserProfile) => {
+    if (user.role === 'admin') {
+      showToast("Admin accounts cannot be disabled", "error");
+      return;
+    }
+    
+    setGlobalLoading(true);
+    try {
+      const newStatus = !user.isDisabled;
+      await setDoc(doc(db, "users", user.uid), { isDisabled: newStatus }, { merge: true });
+      showToast(`User ${newStatus ? 'disabled' : 'enabled'} successfully`, "success");
+      fetchUsers();
+    } catch (error: any) {
+      showToast("Failed to update user status", "error");
+    } finally {
+      setGlobalLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: UserProfile) => {
+    if (user.role === 'admin') {
+      showToast("Admin accounts cannot be deleted", "error");
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to permanentely delete ${user.name}? This action cannot be undone.`)) return;
+
+    setGlobalLoading(true);
+    try {
+      // Note: This only deletes from Firestore. 
+      // To delete from Firebase Auth, a cloud function or admin SDK on backend is needed.
+      // But clearing Firestore record effectively removes them from our system.
+      await setDoc(doc(db, "users", user.uid), { isDeleted: true }, { merge: true });
+      showToast("User record marked as deleted", "success");
+      fetchUsers();
+    } catch (error: any) {
+      showToast("Failed to delete user", "error");
+    } finally {
+      setGlobalLoading(false);
+    }
+  };
+
+  const updateUserRole = async (uid: string, newRole: UserRole) => {
+    setGlobalLoading(true);
+    try {
+      await setDoc(doc(db, "users", uid), { role: newRole }, { merge: true });
+      showToast("Role updated successfully", "success");
+      fetchUsers();
+    } catch (error: any) {
+      showToast("Failed to update role", "error");
+    } finally {
+      setGlobalLoading(false);
+    }
+  };
 
   const getRoleIcon = (role: string) => {
     switch (role) {
@@ -135,14 +192,61 @@ export const UsersManagement: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-        <div className="overflow-x-auto">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {/* Mobile User Cards */}
+        <div className="grid grid-cols-1 gap-4 p-4 md:hidden">
+          {filteredUsers.length === 0 ? (
+            <div className="p-12 text-center opacity-50">
+              <Users className="mx-auto mb-2 text-gray-300" size={32} />
+              <p className="text-sm font-bold text-gray-400">No users found</p>
+            </div>
+          ) : (
+            filteredUsers.map(user => (
+              <div key={user.uid} className="bg-gray-50/50 rounded-2xl p-4 border border-gray-100 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                      {user.name?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-dark text-sm">{user.name || "Unnamed"}</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tighter border ${
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-700 border-purple-200' :
+                        'bg-blue-100 text-blue-700 border-blue-200'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </div>
+                  </div>
+                  <button className="p-2 text-gray-300 hover:text-red-500">
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-2 pt-2">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Mail size={14} className="text-gray-400" />
+                    {user.email}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
+                    <Phone size={14} className="text-gray-400" />
+                    {user.phone || "No phone"}
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop User Table */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100">
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Name</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Account Information</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Role</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight text-right">Actions</th>
               </tr>
             </thead>
@@ -181,18 +285,39 @@ export const UsersManagement: React.FC = () => {
                     </td>
 
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-tight border ${
-                        user.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                        user.role === 'kitchen' ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                        user.role === 'cashier' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                        'bg-green-50 text-green-700 border-green-100'
-                      }`}>
-                        {getRoleIcon(user.role)}
-                        {user.role}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <select 
+                          value={user.role} 
+                          onChange={(e) => updateUserRole(user.uid, e.target.value as UserRole)}
+                          className={`px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-tight border outline-none cursor-pointer transition-all ${
+                            user.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                            user.role === 'kitchen' ? 'bg-orange-50 text-orange-700 border-orange-100' :
+                            user.role === 'cashier' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                            'bg-green-50 text-green-700 border-green-100'
+                          }`}
+                        >
+                          <option value="admin">Admin</option>
+                          <option value="cashier">Cashier</option>
+                          <option value="kitchen">Kitchen</option>
+                          <option value="customer">Customer</option>
+                        </select>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                       <button 
+                         onClick={() => toggleUserStatus(user)}
+                         className={cn(
+                           "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest transition-all",
+                           user.isDisabled 
+                            ? "bg-red-50 text-primary border border-primary/20" 
+                            : "bg-green-50 text-green-600 border border-green-200"
+                         )}
+                       >
+                         {user.isDisabled ? "Disabled" : "Active"}
+                       </button>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <button className="p-2 text-gray-300 hover:text-red-500 transition-colors">
+                      <button onClick={() => handleDeleteUser(user)} className="p-2 text-gray-300 hover:text-red-500 transition-colors">
                         <Trash2 size={18} />
                       </button>
                     </td>

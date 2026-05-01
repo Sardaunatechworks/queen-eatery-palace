@@ -34,6 +34,11 @@ export const Signup: React.FC = () => {
 
     setLoading(true);
 
+    if (formData.email.toLowerCase() === "admin@queeneaterypalace.com") {
+      setLoading(false);
+      return showToast("Admin accounts must be created manually.", "error");
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
       const user = userCredential.user;
@@ -71,7 +76,7 @@ export const Signup: React.FC = () => {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-dark tracking-tight">Sign Up</h1>
-            <p className="text-sm text-gray-500 mt-2">Create your Queen's Eatery account</p>
+            <p className="text-sm text-gray-500 mt-2">Create your account</p>
           </div>
 
           <form onSubmit={handleSignup} className="space-y-6">

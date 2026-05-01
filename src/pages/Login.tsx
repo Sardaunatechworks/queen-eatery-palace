@@ -25,8 +25,31 @@ export const Login: React.FC = () => {
         const userDoc = await getDoc(doc(db, "users", cred.user.uid));
         
         if (userDoc.exists()) {
-          const role = userDoc.data().role;
-          showToast(`Welcome back, ${role}`, "success");
+          const userData = userDoc.data();
+          const role = userData.role;
+          const isSuperAdmin = userData.isSuperAdmin;
+          const status = userData.status;
+          const suspensionReason = userData.suspensionReason;
+          const suspensionEndDate = userData.suspensionEndDate;
+          
+          // Check for suspension
+          if (status === 'suspended') {
+            const now = new Date();
+            const endDate = suspensionEndDate?.toDate ? suspensionEndDate.toDate() : null;
+            
+            if (!endDate || now < endDate) {
+              const dateStr = endDate ? endDate.toLocaleDateString() : "indefinitely";
+              showToast(`ACCESS DENIED: Your account is suspended until ${dateStr}. Reason: ${suspensionReason || 'N/A'}`, "error");
+              await auth.signOut();
+              return;
+            }
+          }
+          
+          showToast(
+            isSuperAdmin ? "Welcome back, Super Admin!" : `Welcome back, ${role}`, 
+            "success"
+          );
+
           if (role === "admin") navigate("/admin");
           else if (role === "cashier") navigate("/cashier");
           else if (role === "kitchen") navigate("/kitchen");
@@ -58,7 +81,7 @@ export const Login: React.FC = () => {
 
           <div className="text-center mb-10">
             <h1 className="text-3xl font-bold text-dark tracking-tight">Login</h1>
-            <p className="text-sm text-gray-500 mt-2">Welcome back to Queen's Eatery</p>
+            <p className="text-sm text-gray-500 mt-2">Access your account</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">

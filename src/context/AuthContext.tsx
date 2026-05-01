@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot } from "firebase/firestore";
 import { auth, db, handleFirestoreError, OperationType } from "../services/firebase";
 
 export type UserRole = "admin" | "cashier" | "kitchen" | "customer";
@@ -12,6 +12,8 @@ export interface UserProfile {
   phone: string;
   role: UserRole;
   address?: string;
+  isSuperAdmin?: boolean;
+  isDisabled?: boolean;
 }
 
 interface AuthContextType {
@@ -36,28 +38,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let unsubscribeProfile: (() => void) | null = null;
+    
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       if (currentUser) {
-        try {
-          const userDocRef = doc(db, "users", currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            setProfile({ uid: currentUser.uid, ...userDoc.data() } as UserProfile);
+        // Real-time listener for user profile to catch immediate disabling
+        unsubscribeProfile = onSnapshot(doc(db, "users", currentUser.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            
+            // Check for immediate exclusion
+            if (data.isDisabled === true) {
+              firebaseSignOut(auth);
+              setUser(null);
+              setProfile(null);
+              return;
+            }
+            
+            setProfile({ uid: currentUser.uid, ...data } as UserProfile);
           } else {
-            // Default to customer if no profile exists yet (e.g. during signup)
             setProfile(null);
           }
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, `users/${currentUser.uid}`);
-        }
+          setLoading(false);
+        }, (error) => {
+          console.error("Failed to fetch user profile, likely due to missing Firestore rules:", error);
+          setLoading(false);
+        });
       } else {
         setProfile(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   const signOut = async () => {

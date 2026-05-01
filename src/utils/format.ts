@@ -18,5 +18,5 @@ export const formatNaira = (amount: number): string => {
  * @param sequence The current sequence number
  */
 export const formatOrderId = (sequence: number): string => {
-  return `QEP-${String(sequence).padStart(4, '0')}`;
+  return `QEP-${String(sequence).padStart(5, '0')}`;
 };
