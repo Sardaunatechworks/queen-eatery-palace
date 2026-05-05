@@ -13,10 +13,9 @@ import { formatNaira } from "../../utils/format";
 import { getNextOrderId } from "../../services/counters";
 import { useUI } from "../../context/UIContext";
 import { ReceiptModal } from "../../components/ReceiptModal";
+import { OrderAcceptanceModal } from "../../components/OrderAcceptanceModal";
 import { format } from "date-fns";
 import { cn } from "../../utils/cn";
-
-const NOTIFICATION_SOUND = "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3";
 
 const MenuCard = React.memo(({ item, onAdd }: { item: MenuItem, onAdd: (item: MenuItem) => void }) => {
   const isOutOfStock = item.stockQuantity <= 0;
@@ -82,13 +81,13 @@ export const CashierTerminal: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "transfer" | "pos">("cash");
+  const [selectedPendingOrder, setSelectedPendingOrder] = useState<any>(null);
   
   // Notification States
   const [unreadCount, setUnreadCount] = useState(0);
   const [volume, setVolume] = useState(() => Number(localStorage.getItem('notiVolume') || 0.5));
   const [isMuted, setIsMuted] = useState(() => localStorage.getItem('notiMuted') === 'true');
   const isFirstLoad = useRef(true);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Simulation State
   const [showReceipt, setShowReceipt] = useState(false);
@@ -98,22 +97,36 @@ export const CashierTerminal: React.FC = () => {
 
   const categories = ["All", "Meals", "Drinks", "Desserts"];
 
-  // Initialize Audio
-  useEffect(() => {
-    const audio = new Audio(NOTIFICATION_SOUND);
-    audio.volume = volume;
-    audio.muted = isMuted;
-    audioRef.current = audio;
-  }, []);
-
   // Sync Audio Settings
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-      audioRef.current.muted = isMuted;
-    }
     localStorage.setItem('notiVolume', volume.toString());
     localStorage.setItem('notiMuted', isMuted.toString());
+  }, [volume, isMuted]);
+
+  const playBeep = React.useCallback((type: 'success' | 'error' = 'success') => {
+    if (isMuted || volume === 0) return;
+    try {
+      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContext) return;
+      const audioCtx = new AudioContext();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.type = type === 'error' ? 'sawtooth' : 'sine';
+      oscillator.frequency.setValueAtTime(type === 'error' ? 300 : 880, audioCtx.currentTime); 
+      oscillator.frequency.exponentialRampToValueAtTime(type === 'error' ? 100 : 440, audioCtx.currentTime + 0.5);
+      
+      gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 1);
+    } catch (e) {
+      console.warn("Beep failed:", e);
+    }
   }, [volume, isMuted]);
 
   // Listen to Menu
@@ -144,14 +157,8 @@ export const CashierTerminal: React.FC = () => {
       if (!isFirstLoad.current) {
         snapshot.docChanges().forEach((change) => {
           if (change.type === "added") {
-            try {
-              audioRef.current?.play().catch(e => console.log("Audio block:", e));
-              showToast("New customer order received!", "success");
-              if (activeTab !== "incoming") {
-                setUnreadCount(prev => prev + 1);
-              }
-            } catch (err) {
-              console.error("Notification failed", err);
+            if (activeTab !== "incoming") {
+              setUnreadCount(prev => prev + 1);
             }
           }
         });
@@ -255,7 +262,7 @@ export const CashierTerminal: React.FC = () => {
 
         // Sound alert if hit zero
         if (newStock === 0) {
-          audioRef.current?.play().catch(e => console.log("Audio block:", e));
+          playBeep('error');
           showToast(`${item.name} is now OUT OF STOCK!`, "error");
         }
       });
@@ -521,10 +528,10 @@ export const CashierTerminal: React.FC = () => {
                     <div className="flex gap-2">
                        {order.status === 'pending' ? (
                         <button
-                          onClick={() => handleUpdateStatus(order.id, "preparing")}
+                          onClick={() => setSelectedPendingOrder(order)}
                           className="flex-1 bg-dark text-white py-3 rounded-xl font-bold text-[10px] uppercase hover:bg-black transition-all shadow-sm flex items-center justify-center gap-2 active:scale-95"
                         >
-                          <ChefHat size={14} /> Start Preparing
+                          <ChefHat size={14} /> Receive Order
                         </button>
                       ) : (
                         <button
@@ -548,6 +555,12 @@ export const CashierTerminal: React.FC = () => {
         onClose={() => setShowReceipt(false)} 
         order={completedOrder} 
         mode="cashier"
+      />
+      <OrderAcceptanceModal 
+        isOpen={!!selectedPendingOrder} 
+        onClose={() => setSelectedPendingOrder(null)} 
+        order={selectedPendingOrder} 
+        onConfirm={handleUpdateStatus} 
       />
     </div>
   );

@@ -5,6 +5,9 @@ import { getNextOrderId } from '../services/orderService.js';
 export const verifyPayment = async (req, res) => {
   const { reference, orderData, userId } = req.body;
   const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+  console.log("--- Payment Verification Start ---");
+  console.log("Reference:", reference);
+  console.log("Key Prefix:", PAYSTACK_SECRET_KEY?.substring(0, 8));
 
   if (!reference || !orderData || !userId) {
     return res.status(400).json({ success: false, message: "Missing required fields" });
@@ -17,10 +20,24 @@ export const verifyPayment = async (req, res) => {
       }
     });
 
+    if (!response.ok) {
+      const errText = await response.json().catch(() => ({ message: "Unknown error" }));
+      console.error("Paystack API Error:", response.status, errText);
+      return res.status(response.status).json({ 
+        success: false, 
+        message: `Paystack API Error: ${errText.message || 'Unauthorized or Server Error'}` 
+      });
+    }
+
     const data = await response.json();
+    console.log("Paystack Verification Response:", JSON.stringify(data, null, 2));
 
     if (!data.status || data.data.status !== 'success') {
-      return res.status(400).json({ success: false, message: "Payment verification failed" });
+      console.error("Verification failed for reference:", reference, "Reason:", data.message);
+      return res.status(400).json({ 
+        success: false, 
+        message: `Payment verification failed: ${data.message || 'Transaction not successful'}` 
+      });
     }
 
     const paidAmount = data.data.amount / 100;

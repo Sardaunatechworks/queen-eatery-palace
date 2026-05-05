@@ -7,12 +7,14 @@ import { Search, Filter, Receipt, Clock, CheckCircle, XCircle, Timer, AlertCircl
 import { formatNaira } from "../../utils/format";
 import { useUI } from "../../context/UIContext";
 import { cn } from "../../utils/cn";
+import { OrderAcceptanceModal } from "../../components/OrderAcceptanceModal";
 
 export const CashierTransactions: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [selectedPendingOrder, setSelectedPendingOrder] = useState<Order | null>(null);
   const { showToast, setLoading: setGlobalLoading } = useUI();
 
   useEffect(() => {
@@ -175,6 +177,7 @@ export const CashierTransactions: React.FC = () => {
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Order ID</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Date</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Items</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Delivery</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Amount</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-tight text-right">Actions</th>
@@ -184,9 +187,14 @@ export const CashierTransactions: React.FC = () => {
               {filteredOrders.map((order) => (
                 <tr key={order.id} className="group hover:bg-gray-50/50 transition-colors text-sm">
                   <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                       <Receipt size={14} className="text-accent" />
-                       <span className="font-bold text-dark">{order.orderId || order.id.slice(0, 8)}</span>
+                    <div className="flex flex-col">
+                      <div className="flex items-center gap-3">
+                         <Receipt size={14} className="text-accent" />
+                         <span className="font-bold text-dark">{order.orderId || order.id.slice(0, 8)}</span>
+                      </div>
+                      <span className={`text-[9px] font-black uppercase mt-1 px-2 py-0.5 rounded w-fit ${order.source === 'staff' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'}`}>
+                        {order.source === 'staff' ? 'Cashier Counter' : 'Online Order'}
+                      </span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -210,6 +218,18 @@ export const CashierTransactions: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
+                     <div className="flex flex-col">
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${order.deliveryType === 'delivery' ? 'text-indigo-600' : 'text-gray-500'}`}>
+                           {order.deliveryType === 'delivery' ? 'Delivery' : 'Pickup'}
+                        </span>
+                        {order.deliveryType === 'delivery' && order.address && (
+                           <span className="text-xs text-gray-600 font-medium truncate max-w-[150px]" title={order.address}>
+                              {order.address}
+                           </span>
+                        )}
+                     </div>
+                  </td>
+                  <td className="px-6 py-4">
                      <span className="font-bold text-primary">{formatNaira(order.total)}</span>
                   </td>
                   <td className="px-6 py-4">
@@ -227,6 +247,14 @@ export const CashierTransactions: React.FC = () => {
                   </td>
                   <td className="px-6 py-4">
                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {order.status === 'pending' && (
+                          <button 
+                            onClick={() => setSelectedPendingOrder(order)} 
+                            className="px-3 py-1.5 bg-primary text-white rounded-lg hover:bg-primary-dark transition-all text-[10px] font-bold uppercase tracking-tight"
+                          >
+                             Receive Order
+                          </button>
+                        )}
                         {order.status === 'ready' && (
                           <button onClick={() => updateStatus(order.id, "completed")} className="p-1.5 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all">
                              <CheckCircle size={14} />
@@ -245,6 +273,12 @@ export const CashierTransactions: React.FC = () => {
           </table>
         </div>
       </div>
+      <OrderAcceptanceModal 
+        isOpen={!!selectedPendingOrder} 
+        onClose={() => setSelectedPendingOrder(null)} 
+        order={selectedPendingOrder} 
+        onConfirm={updateStatus} 
+      />
     </div>
   );
 };

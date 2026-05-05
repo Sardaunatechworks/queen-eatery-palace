@@ -6,7 +6,6 @@ import {
   DollarSign, 
   ShoppingBag, 
   Users as UsersIcon, 
-  Package, 
   AlertTriangle,
   TrendingUp,
   ArrowRight
@@ -18,8 +17,7 @@ export const AdminOverview: React.FC = () => {
     totalSales: 0,
     totalOrders: 0,
     totalCustomers: 0,
-    activeOrders: 0,
-    lowStockItems: 0
+    activeOrders: 0
   });
   const [loading, setLoading] = useState(true);
 
@@ -46,19 +44,11 @@ export const AdminOverview: React.FC = () => {
           if (doc.data().role === 'customer') customers++;
         });
 
-        const invSnap = await getDocs(collection(db, "inventory"));
-        let lowStock = 0;
-        invSnap.forEach(doc => {
-          const data = doc.data();
-          if (data.quantity <= data.threshold) lowStock++;
-        });
-
         setStats({
           totalSales: sales,
           totalOrders: ordersSnap.size,
           totalCustomers: customers,
-          activeOrders: active,
-          lowStockItems: lowStock
+          activeOrders: active
         });
       } catch (error) {
         handleFirestoreError(error, OperationType.LIST, "multiple");
@@ -96,16 +86,7 @@ export const AdminOverview: React.FC = () => {
       color: "text-purple-600", 
       light: "bg-purple-50",
       trend: "+2.4%",
-      link: "/admin/users"
-    },
-    { 
-      label: "Stock Alerts", 
-      value: stats.lowStockItems.toString(), 
-      icon: AlertTriangle, 
-      color: "text-red-600", 
-      light: "bg-red-50",
-      trend: "Check",
-      link: "/admin/inventory"
+      link: "/admin/staff"
     },
   ];
 
@@ -166,15 +147,6 @@ export const AdminOverview: React.FC = () => {
                  <p className="text-xs font-semibold text-gray-500 uppercase">Active Orders</p>
                  <Link to="/admin/orders" className="mt-4 text-xs font-bold text-primary hover:underline">View Orders</Link>
               </div>
-
-              <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 flex flex-col items-center text-center">
-                 <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center mb-3 shadow-sm">
-                    <Package className="text-red-500" size={24} />
-                 </div>
-                 <h4 className="text-2xl font-bold text-dark mb-1">{stats.lowStockItems}</h4>
-                 <p className="text-xs font-semibold text-gray-500 uppercase">Low Stock Items</p>
-                 <Link to="/admin/inventory" className="mt-4 text-xs font-bold text-red-500 hover:underline">Manage Inventory</Link>
-              </div>
            </div>
         </div>
 
@@ -185,7 +157,7 @@ export const AdminOverview: React.FC = () => {
            <div className="space-y-3">
               {[
                 { name: "Add Menu Item", link: "/admin/menu", icon: PlusIcon },
-                { name: "Manage Users", link: "/admin/users", icon: UsersIcon },
+                { name: "Manage Users", link: "/admin/staff", icon: UsersIcon },
                 { name: "View Reports", link: "/admin/reports", icon: TrendingUp }
               ].map(action => (
                 <Link 

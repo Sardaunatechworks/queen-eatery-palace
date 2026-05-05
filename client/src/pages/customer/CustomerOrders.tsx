@@ -7,11 +7,14 @@ import { format } from "date-fns";
 import { Clock, MapPin, Package, Receipt, ArrowRight, CheckCircle2, Timer } from "lucide-react";
 import { formatNaira } from "../../utils/format";
 import { useUI } from "../../context/UIContext";
+import { ReceiptModal } from "../../components/ReceiptModal";
 
 export const CustomerOrders: React.FC = () => {
   const { profile } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
   const { showToast } = useUI();
 
   useEffect(() => {
@@ -154,7 +157,10 @@ export const CustomerOrders: React.FC = () => {
                     )}
                     
                     <div className="mt-6 pt-6 border-t border-gray-100">
-                       <button className="flex items-center gap-2 text-primary hover:underline text-[10px] font-bold uppercase tracking-tight">
+                       <button 
+                          onClick={() => { setSelectedOrder(order); setShowReceipt(true); }}
+                          className="flex items-center gap-2 text-primary hover:underline text-[10px] font-bold uppercase tracking-tight"
+                       >
                           View Receipt <ArrowRight size={14} />
                        </button>
                     </div>
@@ -165,6 +171,13 @@ export const CustomerOrders: React.FC = () => {
           ))}
         </div>
       )}
+
+      <ReceiptModal 
+        isOpen={showReceipt} 
+        onClose={() => setShowReceipt(false)} 
+        order={selectedOrder} 
+        mode="customer" 
+      />
     </div>
   );
 };

@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { AuthProvider } from "./context/AuthContext";
 import { UIProvider } from "./context/UIContext";
 import { ProtectedRoute } from "./routes/ProtectedRoute";
+import { GlobalOrderNotifier } from "./components/GlobalOrderNotifier";
+import { SessionTimeout } from "./components/SessionTimeout";
 const Landing = React.lazy(() => import("./pages/Landing").then(m => ({ default: m.Landing })));
 const Login = React.lazy(() => import("./pages/Login").then(m => ({ default: m.Login })));
 const Signup = React.lazy(() => import("./pages/Signup").then(m => ({ default: m.Signup })));
@@ -24,6 +26,8 @@ export default function App() {
   return (
     <UIProvider>
       <AuthProvider>
+        <GlobalOrderNotifier />
+        <SessionTimeout />
         <Router>
         <React.Suspense fallback={<LoadingFallback />}>
           <Routes>

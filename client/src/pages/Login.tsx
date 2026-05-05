@@ -117,7 +117,7 @@ export const Login: React.FC = () => {
                 </button>
               </div>
               <div className="flex justify-end pt-1">
-                <Link to="/forgot-password" size={12} className="text-xs font-semibold text-primary hover:underline">
+                <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
                   Forgot Password?
                 </Link>
               </div>

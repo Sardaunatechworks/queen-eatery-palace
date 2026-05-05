@@ -160,14 +160,33 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ isOpen, onClose, ord
               <Printer size={18} /> Print Receipt
             </button>
           ) : (
-            <button
-              onClick={onClose}
-              className="flex-1 bg-primary text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95"
-            >
-               Confirm & Close
-            </button>
+            <>
+              <button
+                onClick={onClose}
+                className="flex-1 bg-white text-dark border border-gray-200 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-50 transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                 Close
+              </button>
+              <button
+                onClick={handlePrint}
+                className="flex-1 bg-primary text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-primary-dark transition-all shadow-xl shadow-primary/20 flex items-center justify-center gap-2 active:scale-95"
+              >
+                <Printer size={18} /> Download
+              </button>
+            </>
           )}
-          <button className="bg-white text-gray-400 p-4 rounded-2xl border border-gray-200 hover:text-primary transition-colors">
+          <button 
+            onClick={() => {
+              if (navigator.share) {
+                navigator.share({
+                  title: 'Queen Eatery Palace Receipt',
+                  text: `Receipt for Order #${order.orderId || order?.id?.slice(0, 8) || 'Unknown'}`,
+                  url: window.location.href,
+                }).catch(console.error);
+              }
+            }}
+            className="bg-white text-gray-400 p-4 rounded-2xl border border-gray-200 hover:text-primary transition-colors flex items-center justify-center"
+          >
             <Share2 size={18} />
           </button>
         </div>

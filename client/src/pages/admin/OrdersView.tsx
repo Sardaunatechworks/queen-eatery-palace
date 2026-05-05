@@ -5,11 +5,14 @@ import { format } from "date-fns";
 import { formatNaira } from "../../utils/format";
 import { useUI } from "../../context/UIContext";
 import { Search, Filter, Receipt, Clock, CheckCircle2, Truck, Timer, XCircle, MoreVertical } from "lucide-react";
+import { OrderAcceptanceModal } from "../../components/OrderAcceptanceModal";
 
 export interface Order {
   id: string;
   orderId?: string; // Sequential ID (e.g., QEP-0001)
   customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
   items: any[];
   total: number;
   status: "pending" | "preparing" | "ready" | "completed" | "cancelled";
@@ -25,6 +28,7 @@ export const OrdersView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
+  const [selectedPendingOrder, setSelectedPendingOrder] = useState<Order | null>(null);
   const { showToast, setLoading: setGlobalLoading } = useUI();
 
   useEffect(() => {
@@ -177,7 +181,13 @@ export const OrdersView: React.FC = () => {
                       {["preparing", "ready", "completed", "cancelled"].map((s) => (
                         <button 
                           key={s}
-                          onClick={() => updateStatus(order.id, s as Order["status"])}
+                          onClick={() => {
+                            if (order.status === 'pending' && s === 'preparing') {
+                              setSelectedPendingOrder(order);
+                            } else {
+                              updateStatus(order.id, s as Order["status"]);
+                            }
+                          }}
                           className="w-full text-left px-3 py-2 text-[10px] font-bold text-gray-600 hover:bg-gray-50 hover:text-primary capitalize transition-colors"
                         >
                           {s}
@@ -231,13 +241,20 @@ export const OrdersView: React.FC = () => {
                         </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-tight border ${
-                        order.deliveryType === 'delivery' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-purple-50 text-purple-700 border-purple-100'
-                      }`}>
-                        {order.deliveryType === 'delivery' ? <Truck size={12} /> : <Clock size={12} />}
-                        {order.deliveryType}
-                      </span>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-tight border ${
+                          order.deliveryType === 'delivery' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'bg-purple-50 text-purple-700 border-purple-100'
+                        }`}>
+                          {order.deliveryType === 'delivery' ? <Truck size={12} /> : <Clock size={12} />}
+                          {order.deliveryType}
+                        </span>
+                        {order.deliveryType === 'delivery' && order.address && (
+                          <span className="text-[11px] text-gray-500 font-medium mt-1 truncate max-w-[150px]" title={order.address}>
+                            {order.address}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 font-bold text-dark">{formatNaira(order.total)}</td>
                     <td className="px-6 py-4 text-center">
@@ -265,7 +282,13 @@ export const OrdersView: React.FC = () => {
                             {["preparing", "ready", "completed", "cancelled"].map((s) => (
                               <button 
                                 key={s}
-                                onClick={() => updateStatus(order.id, s as Order["status"])}
+                                onClick={() => {
+                                  if (order.status === 'pending' && s === 'preparing') {
+                                    setSelectedPendingOrder(order);
+                                  } else {
+                                    updateStatus(order.id, s as Order["status"]);
+                                  }
+                                }}
                                 className="w-full text-left px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-primary capitalize transition-colors"
                               >
                                 {s}
@@ -281,6 +304,12 @@ export const OrdersView: React.FC = () => {
           </table>
         </div>
       </div>
+      <OrderAcceptanceModal 
+        isOpen={!!selectedPendingOrder} 
+        onClose={() => setSelectedPendingOrder(null)} 
+        order={selectedPendingOrder} 
+        onConfirm={updateStatus} 
+      />
     </div>
   );
 };

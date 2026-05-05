@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import paymentRoutes from './routes/paymentRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 dotenv.config();
 
@@ -18,6 +19,7 @@ app.get('/api/status', (req, res) => {
 });
 
 app.use('/api', paymentRoutes);
+app.use('/api', userRoutes);
 
 const PORT = process.env.PORT || 5050;
 app.listen(PORT, () => {

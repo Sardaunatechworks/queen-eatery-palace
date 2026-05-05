@@ -39,9 +39,10 @@ const MenuCard = React.memo(({ item, onAdd }: { item: MenuItem, onAdd: (item: Me
           <h3 className="font-bold text-dark text-sm sm:text-base leading-tight">{item.name}</h3>
           <p className="text-red-600 font-bold text-base">{formatNaira(item.price)}</p>
         </div>
-        <div className="flex items-center justify-between gap-1 text-[10px] uppercase font-bold tracking-tight text-gray-400">
-           <span>Stock: {item.stockQuantity}</span>
-           {item.stockQuantity < 5 && item.stockQuantity > 0 && <span className="text-yellow-600 font-black">Low</span>}
+        <div className="flex items-center justify-between gap-1 text-[10px] uppercase font-bold tracking-tight">
+           <span className={cn(isAvailable ? "text-green-600" : "text-red-600")}>
+             {isAvailable ? "Available" : "Sold Out"}
+           </span>
         </div>
         <button
           onClick={() => isAvailable && onAdd(item)}
@@ -157,6 +158,8 @@ export const CustomerMenu: React.FC = () => {
       const orderData = {
         userId,
         customerName: profile?.name || "Customer",
+        customerEmail: profile?.email || "N/A",
+        customerPhone: profile?.phone || "N/A",
         items: cart.map(i => ({ id: i.item.id, name: i.item.name, price: i.item.price, quantity: i.quantity })),
         total,
         deliveryType,
@@ -196,6 +199,7 @@ export const CustomerMenu: React.FC = () => {
         showToast("Order placed successfully.", "success");
       } else {
         showToast(result.message || "Payment failed", "error");
+        console.error("Payment Verification Failed:", result);
       }
     } catch (error: any) {
       showToast("Verification failed.", "error");
@@ -292,13 +296,21 @@ export const CustomerMenu: React.FC = () => {
           </div>
           
           {deliveryType === 'delivery' && (
-            <textarea 
-              placeholder="Delivery address..." 
-              rows={2}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-600 outline-none text-[11px] font-bold transition-all resize-none"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-            />
+            <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
+              <textarea 
+                placeholder="Delivery address..." 
+                rows={2}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-red-600 outline-none text-[11px] font-bold transition-all resize-none"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+              />
+              <div className="flex items-start gap-1.5 px-1">
+                <MapPin size={12} className="text-red-600 mt-0.5 shrink-0" />
+                <p className="text-[10px] text-gray-500 font-medium leading-tight">
+                  <span className="font-bold text-red-600">Note:</span> Delivery fee is not included in the total and will be charged separately based on your location.
+                </p>
+              </div>
+            </div>
           )}
         </div>
 

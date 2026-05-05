@@ -200,40 +200,51 @@ export const Reports: React.FC = () => {
           </div>
       </div>
 
-      <div className="bg-dark rounded-[2.5rem] p-10 text-white relative overflow-hidden">
-         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/20 rounded-full blur-[80px]" />
-         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full text-[10px] font-black text-accent uppercase tracking-[0.2em]">
-                   <BarChart3 size={14} /> Intelligence Overview
-                </div>
-                <h3 className="text-4xl font-black tracking-tighter leading-none">
-                  Predictive Growth & <br /> Royal Analytics
-                </h3>
-                <p className="text-white/60 text-sm leading-relaxed max-w-md">
-                   Leverage our advanced reporting suite to track daily performance, export financial data for accounting, and optimize your menu based on unit volume. 
-                </p>
-                <div className="flex gap-4">
-                   <div className="bg-white/5 border border-white/10 p-5 rounded-3xl flex-1 backdrop-blur-md">
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Confidence</p>
-                      <p className="text-2xl font-black text-white italic">Premium</p>
-                   </div>
-                   <div className="bg-white/5 border border-white/10 p-5 rounded-3xl flex-1 backdrop-blur-md">
-                      <p className="text-[10px] font-black text-white/40 uppercase tracking-widest mb-2">Fulfillment</p>
-                      <p className="text-2xl font-black text-accent">100%</p>
-                   </div>
-                </div>
-            </div>
-            
-            <div className="bg-white/5 border border-white/10 p-2 rounded-[2rem] aspect-video flex items-center justify-center backdrop-blur-sm relative border-dashed">
-                <div className="absolute flex flex-col items-center gap-4 text-center p-8">
-                   <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center text-accent animate-pulse">
-                      <BarChart3 size={32} />
-                   </div>
-                   <p className="text-xs font-bold text-white/50 max-w-[200px]">Advanced Visual Charts coming in the next module upgrade.</p>
-                </div>
-            </div>
-         </div>
+      {/* Detailed Orders Table */}
+      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden mt-8">
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h3 className="font-bold text-dark text-lg tracking-tight">Transaction History</h3>
+          <div className="text-sm text-gray-500 font-medium bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
+            Showing <span className="font-bold text-primary">{stats.filtered.length}</span> records
+          </div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="px-6 py-4">Order ID</th>
+                <th className="px-6 py-4">Date</th>
+                <th className="px-6 py-4">Type</th>
+                <th className="px-6 py-4">Amount</th>
+                <th className="px-6 py-4">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {stats.filtered.length > 0 ? (
+                stats.filtered.map((order, i) => (
+                  <tr key={i} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 font-bold text-dark">{order.orderId || order.id.slice(0, 8)}</td>
+                    <td className="px-6 py-4 text-gray-500">{order.createdAt.toLocaleString()}</td>
+                    <td className="px-6 py-4 text-gray-600 capitalize font-medium">{order.deliveryType || 'N/A'}</td>
+                    <td className="px-6 py-4 font-black text-dark">{formatNaira(order.total || 0)}</td>
+                    <td className="px-6 py-4">
+                      <span className="px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-green-100">
+                        Paid
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium">
+                    No transactions found for the selected period.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

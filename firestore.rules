@@ -40,7 +40,7 @@ service cloud.firestore {
     // Users Collection
     match /users/{userId} {
       // Customers can read their own profile. Admins can read all.
-      allow read: if isOwner(userId) || isAdmin() || isCashier() || !isAuthenticated();
+      allow read: if isOwner(userId) || isAdmin() || isCashier() || isKitchen() || !isAuthenticated();
       
       // Customers can create their own profile during signup.
       allow create: if isOwner(userId);
@@ -55,15 +55,12 @@ service cloud.firestore {
 
     // Menu Collection
     match /menu/{itemId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || isCashier() || isCustomer() || isKitchen();
     }
 
-    // Inventory Collection
-    match /inventory/{itemId} {
-      allow read, write: if isAdmin();
-      allow read, update: if isCashier() || isKitchen();
-    }
+
 
     // Orders Collection
     match /orders/{orderId} {
