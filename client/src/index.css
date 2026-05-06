@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #c81e1e; /* Royal Red */
+  --color-primary-dark: #9b1c1c;
+  --color-accent: #d4af37; /* Elegant Gold */
+  --color-dark: #111827;
+  --color-light: #f8fafc;
+  --color-surface: #ffffff;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-light);
+    color: var(--color-dark);
+    @apply antialiased;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full hover:bg-gray-400 transition-colors;
+  }
+
+  /* Standard Card */
+  .card {
+    @apply bg-white rounded-xl border border-gray-100 shadow-sm transition-shadow hover:shadow-md;
+  }
+
+  /* Mobile touch optimizations */
+  @media (max-width: 640px) {
+    input, select, textarea, button {
+      font-size: 16px !important; /* Prevents iOS zoom on focus */
+    }
+    
+    .btn-primary {
+      @apply py-3 w-full; /* Full width buttons on mobile */
+    }
+  }
+
+  /* No scrollbar utility */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg font-medium hover:bg-primary-dark transition-colors active:scale-95 duration-200;
+  }
+}
+
+/* Print Styles for Receipts */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print\:static, .print\:static * {
+    visibility: visible;
+  }
+  .print\:static {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}
+
