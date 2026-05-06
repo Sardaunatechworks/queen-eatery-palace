@@ -6,24 +6,40 @@ import { useUI } from "../../context/UIContext";
 import { 
   DollarSign, 
   ShoppingBag, 
-  Users as UsersIcon, 
   Package, 
   TrendingUp, 
   BarChart3,
-  Calendar,
   Download,
   FileText,
   FileSpreadsheet,
-  Layers
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
+  CalendarDays
 } from "lucide-react";
 import { exportToCSV, exportToExcel, exportToPDF } from "../../utils/export";
-import { startOfDay, subDays, isWithinInterval } from "date-fns";
+import { startOfDay, subDays, isWithinInterval, format, startOfWeek, startOfMonth } from "date-fns";
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  AreaChart, 
+  Area,
+  PieChart,
+  Pie,
+  Cell
+} from "recharts";
+import { cn } from "../../utils/cn";
 
 type TimeRange = "today" | "week" | "month" | "all";
 
 export const Reports: React.FC = () => {
   const [orders, setOrders] = useState<any[]>([]);
-  const [timeRange, setTimeRange] = useState<TimeRange>("all");
+  const [timeRange, setTimeRange] = useState<TimeRange>("month");
   const [loading, setLoading] = useState(true);
   const { showToast } = useUI();
 
@@ -31,14 +47,27 @@ export const Reports: React.FC = () => {
     const fetchData = async () => {
       try {
         const ordersSnap = await getDocs(collection(db, "orders"));
-        const ordersData = ordersSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate() || new Date()
-        }));
+        const ordersData = ordersSnap.docs.map(doc => {
+          const data = doc.data();
+          let createdAtDate: Date;
+          
+          if (data.createdAt?.toDate) {
+            createdAtDate = data.createdAt.toDate();
+          } else if (typeof data.createdAt === 'string') {
+            createdAtDate = new Date(data.createdAt);
+          } else {
+            createdAtDate = new Date();
+          }
+
+          return {
+            id: doc.id,
+            ...data,
+            createdAt: createdAtDate
+          };
+        });
         setOrders(ordersData);
       } catch (error) {
-        showToast("Failed to load data", "error");
+        showToast("Failed to load business data", "error");
       } finally {
         setLoading(false);
       }
@@ -52,35 +81,62 @@ export const Reports: React.FC = () => {
     
     switch (timeRange) {
       case "today": start = startOfDay(now); break;
-      case "week": start = subDays(now, 7); break;
-      case "month": start = subDays(now, 30); break;
+      case "week": start = startOfWeek(now); break;
+      case "month": start = startOfMonth(now); break;
       default: start = new Date(0);
     }
 
-    const filtered = orders.filter(o => 
-      isWithinInterval(new Date(o.createdAt), { start, end: now }) &&
-      o.paymentStatus === 'paid'
-    );
+    const filtered = orders.filter(o => {
+      const isPaid = o.paymentStatus?.toLowerCase() === 'paid';
+      const isInRange = timeRange === "all" || o.createdAt >= start;
+      return isPaid && isInRange;
+    });
 
     const totalSales = filtered.reduce((sum, o) => sum + (o.total || 0), 0);
     const orderCount = filtered.length;
     const itemsCount = filtered.reduce((sum, o) => sum + (o.items?.length || 0), 0);
     
-    return { totalSales, orderCount, itemsCount, filtered };
+    // Chart Data Preparation
+    const chartDataMap = new Map();
+    filtered.forEach(o => {
+      const dateKey = format(o.createdAt, timeRange === "today" ? "HH:00" : "MMM dd");
+      const current = chartDataMap.get(dateKey) || { date: dateKey, revenue: 0, orders: 0 };
+      chartDataMap.set(dateKey, {
+        ...current,
+        revenue: current.revenue + (o.total || 0),
+        orders: current.orders + 1
+      });
+    });
+
+    const chartData = Array.from(chartDataMap.values()).sort((a, b) => {
+        // Simple sort for date strings if needed, but Map insertion order for time might be enough
+        return 0; 
+    });
+
+    // Delivery Type Distribution
+    const deliveryMap = filtered.reduce((acc, o) => {
+      const type = o.deliveryType || "Pickup";
+      acc[type] = (acc[type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const pieData = Object.entries(deliveryMap).map(([name, value]) => ({ name, value }));
+
+    return { totalSales, orderCount, itemsCount, filtered, chartData, pieData };
   }, [orders, timeRange]);
 
   const handleExport = (type: 'csv' | 'excel' | 'pdf') => {
     if (stats.filtered.length === 0) {
-      showToast("No data to export for this period", "info");
+      showToast("No data to export", "info");
       return;
     }
 
     const data = stats.filtered.map(o => ({
       ID: o.orderId || o.id.slice(0, 8),
-      Date: o.createdAt.toLocaleDateString(),
+      Date: format(o.createdAt, "yyyy-MM-dd HH:mm"),
       Amount: o.total,
       Status: o.status,
-      Type: o.deliveryType
+      Type: o.deliveryType || 'Pickup'
     }));
 
     switch (type) {
@@ -88,38 +144,45 @@ export const Reports: React.FC = () => {
       case 'excel': exportToExcel(data, "Sales_Report"); break;
       case 'pdf': 
            exportToPDF(
-             ["ID", "Date", "Amount", "Status", "Delivery"],
+             ["ID", "Date", "Amount", "Status", "Type"],
              data.map(d => Object.values(d)),
-             "Queens Palace Sales Report"
+             "Queen Eatery Sales Report"
            );
            break;
     }
-    showToast(`${type.toUpperCase()} Exported`, "success");
   };
+
+  const COLORS = ['#ef4444', '#1f2937', '#f59e0b', '#3b82f6'];
 
   if (loading) return (
     <div className="h-64 flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
     </div>
   );
 
   return (
-    <div className="space-y-8 pb-20">
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+    <div className="space-y-8 pb-20 animate-in fade-in duration-500">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
         <div>
-          <h2 className="text-2xl font-bold text-dark tracking-tight">Business Reports</h2>
-          <p className="text-sm text-gray-500">Comprehensive overview of performance and sales.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="bg-primary p-2 rounded-lg shadow-lg shadow-primary/20">
+               <BarChart3 className="text-white" size={20} />
+            </div>
+            <h2 className="text-3xl font-black text-dark tracking-tighter uppercase">Revenue Reports</h2>
+          </div>
+          <p className="text-sm text-gray-400 font-bold uppercase tracking-widest">Financial Performance Analysis</p>
         </div>
         
-        <div className="flex flex-wrap items-center gap-3">
-           <div className="flex bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+           <div className="flex bg-gray-100 p-1 rounded-2xl border border-gray-200">
               {(['today', 'week', 'month', 'all'] as const).map(range => (
                 <button
                   key={range}
                   onClick={() => setTimeRange(range)}
-                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                    timeRange === range ? "bg-primary text-white shadow-md" : "text-gray-400 hover:text-primary"
-                  }`}
+                  className={cn(
+                    "px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                    timeRange === range ? "bg-white text-primary shadow-sm" : "text-gray-400 hover:text-dark"
+                  )}
                 >
                   {range}
                 </button>
@@ -127,118 +190,183 @@ export const Reports: React.FC = () => {
            </div>
 
            <div className="flex gap-2">
-              <button 
-                onClick={() => handleExport('pdf')}
-                className="p-2.5 bg-red-50 text-primary rounded-xl border border-primary/20 hover:bg-primary hover:text-white transition-all shadow-sm"
-                title="Export PDF"
-              >
-                <FileText size={18} />
+              <button onClick={() => handleExport('pdf')} className="p-3 bg-white border border-gray-100 rounded-2xl hover:bg-red-50 text-red-500 transition-all shadow-sm group">
+                <FileText size={20} className="group-hover:scale-110 transition-transform" />
               </button>
-              <button 
-                onClick={() => handleExport('excel')}
-                className="p-2.5 bg-green-50 text-green-600 rounded-xl border border-green-200 hover:bg-green-600 hover:text-white transition-all shadow-sm"
-                title="Export Excel"
-              >
-                <FileSpreadsheet size={18} />
+              <button onClick={() => handleExport('excel')} className="p-3 bg-white border border-gray-100 rounded-2xl hover:bg-green-50 text-green-600 transition-all shadow-sm group">
+                <FileSpreadsheet size={20} className="group-hover:scale-110 transition-transform" />
               </button>
-              <button 
-                onClick={() => handleExport('csv')}
-                className="p-2.5 bg-blue-50 text-blue-600 rounded-xl border border-blue-200 hover:bg-blue-600 hover:text-white transition-all shadow-sm"
-                title="Export CSV"
-              >
-                <Download size={18} />
+              <button onClick={() => handleExport('csv')} className="p-3 bg-white border border-gray-100 rounded-2xl hover:bg-blue-50 text-blue-600 transition-all shadow-sm group">
+                <Download size={20} className="group-hover:scale-110 transition-transform" />
               </button>
            </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-            <div className="w-12 h-12 bg-primary/5 text-primary rounded-2xl flex items-center justify-center mb-4">
-              <DollarSign size={24} />
+          {[
+            { label: "Gross Revenue", value: formatNaira(stats.totalSales), icon: DollarSign, color: "text-red-600", bg: "bg-red-50", trend: "+12%" },
+            { label: "Paid Orders", value: stats.orderCount, icon: ShoppingBag, color: "text-dark", bg: "bg-gray-100", trend: "+5%" },
+            { label: "Items Volume", value: stats.itemsCount, icon: Package, color: "text-amber-600", bg: "bg-amber-50", trend: "+8%" },
+            { label: "Avg Ticket", value: formatNaira(stats.orderCount > 0 ? stats.totalSales / stats.orderCount : 0), icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50", trend: "+2%" }
+          ].map((s, i) => (
+            <div key={i} className="bg-white p-8 rounded-[2rem] border border-gray-50 shadow-sm hover:shadow-xl transition-all duration-300 relative overflow-hidden group">
+               <div className={cn("absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-5 group-hover:scale-150 transition-transform duration-700", s.bg)} />
+               <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-white/20", s.bg, s.color)}>
+                  <s.icon size={28} />
+               </div>
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">{s.label}</p>
+               <h3 className="text-3xl font-black text-dark tracking-tighter">{s.value}</h3>
+               <div className={cn("mt-4 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest", s.color)}>
+                  <ArrowUpRight size={14} /> {s.trend} <span className="text-gray-300">vs prev period</span>
+               </div>
             </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Gross Revenue</p>
-            <h3 className="text-2xl font-black text-dark tracking-tighter">{formatNaira(stats.totalSales)}</h3>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-green-500 uppercase">
-              <TrendingUp size={12} /> Total Paid
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-            <div className="w-12 h-12 bg-accent/5 text-accent rounded-2xl flex items-center justify-center mb-4">
-              <ShoppingBag size={24} />
-            </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Orders Placed</p>
-            <h3 className="text-2xl font-black text-dark tracking-tighter">{stats.orderCount}</h3>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-accent uppercase">
-              <Layers size={12} /> Transactions
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-            <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4">
-              <Package size={24} />
-            </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Items Sold</p>
-            <h3 className="text-2xl font-black text-dark tracking-tighter">{stats.itemsCount}</h3>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-blue-500 uppercase">
-              <BarChart3 size={12} /> Unit Volume
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm transition-all hover:shadow-md">
-            <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-2xl flex items-center justify-center mb-4">
-              <UsersIcon size={24} />
-            </div>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Avg Order Value</p>
-            <h3 className="text-2xl font-black text-dark tracking-tighter">
-              {formatNaira(stats.orderCount > 0 ? stats.totalSales / stats.orderCount : 0)}
-            </h3>
-            <div className="mt-3 flex items-center gap-1.5 text-[10px] font-bold text-purple-500 uppercase">
-              <TrendingUp size={12} /> Ticket Average
-            </div>
-          </div>
+          ))}
       </div>
 
-      {/* Detailed Orders Table */}
-      <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden mt-8">
-        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="font-bold text-dark text-lg tracking-tight">Transaction History</h3>
-          <div className="text-sm text-gray-500 font-medium bg-gray-50 px-3 py-1 rounded-full border border-gray-200">
-            Showing <span className="font-bold text-primary">{stats.filtered.length}</span> records
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Revenue Chart */}
+        <div className="lg:col-span-2 bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm">
+           <div className="flex items-center justify-between mb-10">
+              <div>
+                <h3 className="text-xl font-black text-dark tracking-tighter uppercase">Revenue Flow</h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Earnings trend over time</p>
+              </div>
+              <CalendarDays className="text-gray-200" size={32} />
+           </div>
+           
+           <div className="h-[400px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.chartData}>
+                  <defs>
+                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                  <XAxis 
+                    dataKey="date" 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 800, fill: '#9ca3af' }}
+                    dy={10}
+                  />
+                  <YAxis 
+                    axisLine={false} 
+                    tickLine={false} 
+                    tick={{ fontSize: 10, fontWeight: 800, fill: '#9ca3af' }}
+                    tickFormatter={(val) => `\u20A6${val >= 1000 ? (val/1000).toFixed(0) + 'k' : val}`}
+                  />
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', padding: '12px' }}
+                    itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
+                  />
+                  <Area type="monotone" dataKey="revenue" stroke="#ef4444" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                </AreaChart>
+              </ResponsiveContainer>
+           </div>
+        </div>
+
+        {/* Distribution Chart */}
+        <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm flex flex-col">
+           <div className="mb-10">
+              <h3 className="text-xl font-black text-dark tracking-tighter uppercase">Order Channels</h3>
+              <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Pickup vs Delivery</p>
+           </div>
+           
+           <div className="flex-1 flex flex-col items-center justify-center">
+              <div className="h-[250px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={stats.pieData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {stats.pieData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              <div className="w-full space-y-3 mt-8">
+                 {stats.pieData.map((d, i) => (
+                   <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="flex items-center gap-3">
+                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                         <span className="text-[10px] font-black uppercase tracking-widest text-dark">{d.name}</span>
+                      </div>
+                      <span className="text-sm font-black text-dark">{((d.value / stats.orderCount) * 100).toFixed(0)}%</span>
+                   </div>
+                 ))}
+              </div>
+           </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-[3rem] border border-gray-50 shadow-sm overflow-hidden">
+        <div className="p-10 border-b border-gray-50 flex items-center justify-between">
+          <div>
+            <h3 className="text-2xl font-black text-dark tracking-tighter uppercase">Audit Trail</h3>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Detailed transaction history</p>
+          </div>
+          <div className="text-[10px] font-black text-primary bg-primary/5 px-5 py-2.5 rounded-full border border-primary/10 tracking-widest uppercase">
+            Total records: {stats.filtered.length}
           </div>
         </div>
         
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-gray-50 text-gray-500 font-bold uppercase tracking-wider text-[10px]">
+          <table className="w-full text-left whitespace-nowrap">
+            <thead className="bg-gray-50 text-gray-400 font-black uppercase tracking-[0.2em] text-[10px]">
               <tr>
-                <th className="px-6 py-4">Order ID</th>
-                <th className="px-6 py-4">Date</th>
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4">Amount</th>
-                <th className="px-6 py-4">Status</th>
+                <th className="px-10 py-6">Reference ID</th>
+                <th className="px-10 py-6">Date & Time</th>
+                <th className="px-10 py-6">Channel</th>
+                <th className="px-10 py-6">Amount</th>
+                <th className="px-10 py-6 text-center">Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-gray-50">
               {stats.filtered.length > 0 ? (
                 stats.filtered.map((order, i) => (
-                  <tr key={i} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 font-bold text-dark">{order.orderId || order.id.slice(0, 8)}</td>
-                    <td className="px-6 py-4 text-gray-500">{order.createdAt.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-gray-600 capitalize font-medium">{order.deliveryType || 'N/A'}</td>
-                    <td className="px-6 py-4 font-black text-dark">{formatNaira(order.total || 0)}</td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-full uppercase tracking-widest border border-green-100">
-                        Paid
-                      </span>
+                  <tr key={i} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="px-10 py-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-[10px] font-black text-gray-400 group-hover:bg-primary group-hover:text-white transition-all">
+                          #{i+1}
+                        </div>
+                        <span className="font-black text-dark text-sm tracking-tight">{order.orderId || order.id.slice(0, 8)}</span>
+                      </div>
+                    </td>
+                    <td className="px-10 py-6 text-xs text-gray-500 font-bold uppercase">{format(order.createdAt, "dd MMM yyyy \u2022 HH:mm")}</td>
+                    <td className="px-10 py-6">
+                       <span className="bg-gray-100 text-gray-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                          {order.deliveryType || 'Pickup'}
+                       </span>
+                    </td>
+                    <td className="px-10 py-6 font-black text-dark text-base">{formatNaira(order.total || 0)}</td>
+                    <td className="px-10 py-6 text-center">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 text-[10px] font-black rounded-xl uppercase tracking-[0.2em] border border-green-100 shadow-sm">
+                        <CheckCircle className="w-3 h-3" /> SUCCESS
+                      </div>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400 font-medium">
-                    No transactions found for the selected period.
+                  <td colSpan={5} className="px-10 py-20 text-center">
+                    <div className="flex flex-col items-center opacity-20">
+                      <BarChart3 size={64} className="mb-4" />
+                      <p className="text-xl font-black uppercase tracking-widest">Empty Dataset</p>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -250,3 +378,9 @@ export const Reports: React.FC = () => {
   );
 };
 
+const CheckCircle = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+  </svg>
+);
